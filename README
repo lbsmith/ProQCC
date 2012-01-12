@@ -1,0 +1,21 @@
+ProQCC v1.60 [6/18/1997]
+Lee Smith <lbsmithvt@gmail.com>
+http://github.com/lbsmith
+
+This is a modification to John Carmack's Quake-C compiler.  It allows for
+decompiling to Quake-C native code, compiles over 3 times faster then the standard QCC.
+
+Command line options:
+         By default, ProQCC looks for progs.src in the current directory
+           -dec [datfile]       : decompile progs.dat
+           -src <directory>     : look in a different directory
+           -copy <srcdir>       : build a clean data tree
+           -pak <srcdir>        : build a clean pak file
+           -bspmodels <gamedir> : bsp all bmodels
+           -nolog               : does not write error.log if there are
+                                  errors during compiling/decompiling
+
+The decompiled code is usually generated correctly, but manual tweaking is sometimes necessary. 
+
+The source code isn't the prettiest, but isn't bad considering I was 15 when I
+wrote it.  It's awesome that there are still people using it.   
