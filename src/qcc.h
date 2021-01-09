@@ -8,8 +8,7 @@
 #define STRCMP(s1,s2) (((*s1)!=(*s2)) || strcmp(s1,s2))
 #define STRNCMP(s1,s2,n) (((*s1)!=(*s2)) || strncmp(s1,s2,n))
 
-// #define BETA
-#define VERSION "1.60"
+#define VERSION "1.60 (community)"
 
 #ifndef TRUE
 #define TRUE 1

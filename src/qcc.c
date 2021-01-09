@@ -1,7 +1,11 @@
+
 #include "screen.h"
 #include "qcc.h"
 #include "decomp.h"
 #include <time.h>
+#ifdef __WATCOMC__
+#include <direct.h>
+#endif
 
 char destfile[1024];
 
@@ -860,7 +864,11 @@ int packbytes;
 void
 Sys_mkdir(char *path)
 {
+#ifdef __WATCOMC__
+    if (mkdir(path) != -1)
+#else
     if (mkdir(path, 0777) != -1)
+#endif
 	return;
     if (errno != EEXIST)
 	Error("mkdir %s: %s", path, strerror(errno));
@@ -931,13 +939,13 @@ PackFile(char *src, char *name)
 
 /*
  * ===========
- * CopyFile
+ * Copy_File
  * 
  * Copies a file, creating any directories needed
  * ===========
  */
 void
-CopyFile(char *src, char *dest)
+Copy_File(char *src, char *dest)
 {
     int in, out;
     int remaining, count;
@@ -967,11 +975,11 @@ CopyFile(char *src, char *dest)
 
 /*
  * ===========
- * CopyFiles
+ * Copy_Files
  * ===========
  */
 void
-CopyFiles(void)
+Copy_Files(void)
 {
     int i, p;
     char srcdir[1024], destdir[1024];
@@ -1039,7 +1047,7 @@ CopyFiles(void)
 	sprintf(srcfile, "%s%s", srcdir, name);
 	sprintf(destfile, "%s%s", destdir, name);
 	if (copytype == 1)
-	    CopyFile(srcfile, destfile);
+	    Copy_File(srcfile, destfile);
 	else
 	    PackFile(srcfile, name);
     }
@@ -1049,7 +1057,7 @@ CopyFiles(void)
 	sprintf(srcfile, "%s%s", srcdir, precache_models[i]);
 	sprintf(destfile, "%s%s", destdir, precache_models[i]);
 	if (copytype == 1)
-	    CopyFile(srcfile, destfile);
+	    Copy_File(srcfile, destfile);
 	else
 	    PackFile(srcfile, precache_models[i]);
     }
@@ -1059,7 +1067,7 @@ CopyFiles(void)
 	sprintf(srcfile, "%s%s", srcdir, precache_files[i]);
 	sprintf(destfile, "%s%s", destdir, precache_files[i]);
 	if (copytype == 1)
-	    CopyFile(srcfile, destfile);
+	    Copy_File(srcfile, destfile);
 	else
 	    PackFile(srcfile, precache_files[i]);
     }
@@ -1139,12 +1147,8 @@ main(int argc, char **argv)
     ScrnInit();
 
     MoveCurs(2, 1);
-#ifdef BETA
-    CPrintf("$b4$f7ProQCC$f6 - Advanced Quake-C Compiler/Decompiler NON-PUBLIC BETA   Version $f7" VERSION);
-#else
-//    CPrintf("$b4$f7ProQCC$f6 - Advanced Quake-C Compiler/Decompiler $f7CUSTOM VERSION$f6    Version $f7" VERSION);
-    CPrintf("$b4$f7ProQCC$f6 - Advanced Quake-C Compiler/Decompiler                   Version $f7" VERSION);
-#endif
+    CPrintf("$b4$f7ProQCC$f6 - Advanced Quake-C Compiler/Decompiler         Version $f7" VERSION);
+
     MoveCurs(50, mainstatusline);
 
     p = CheckParm("-dec");
@@ -1211,7 +1215,7 @@ main(int argc, char **argv)
     WriteData(crc);
 
     BspModels();
-    CopyFiles();
+    Copy_Files();
 
     EndText();
     exit(0);

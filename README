@@ -16,6 +16,3 @@ Command line options:
                                   errors during compiling/decompiling
 
 The decompiled code is usually generated correctly, but manual tweaking is sometimes necessary. 
-
-The source code isn't the prettiest, but isn't bad considering I was 15 when I
-wrote it.  It's awesome that there are still people using it.   

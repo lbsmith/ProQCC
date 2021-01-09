@@ -1,3 +1,10 @@
+ï»¿/*
+ * screen.c - Various screen display functions
+ *
+ * Written by: Lee Smith, Modified by David Nugent
+ * Modified by Roger Cross
+ */
+
 #include <stdarg.h>
 #include <signal.h>
 #include <stdio.h>
@@ -31,6 +38,183 @@
 #endif
 #else
 #include <conio.h>
+#endif
+
+#ifdef OS2
+#define INCL_VIO
+#define INCL_KBD
+#define INCL_NOPMAPI
+#include <os2.h>
+#endif
+
+//////////////////////////////////////////////////////////////
+//		Begin of Win32 Screen Functions								//
+//																				//
+//		Rlc added 6/16/98													//
+//////////////////////////////////////////////////////////////
+//#ifdef WIN32
+
+//#include <wtypes.h>
+//#include <wincon.h>
+
+#define _NOCURSOR       0
+#define _NORMALCURSOR   1
+
+static HANDLE hConsoleOutput = 0;
+CONSOLE_SCREEN_BUFFER_INFO ScrBufInfo;
+
+//																				//
+void _setcursortype(int type){} // not used
+
+//																				//
+void textmode(int x){}			// not used
+
+//																				//
+void textcolor(int x)			// fixed colors, Bright Yellow on Blue
+{
+	SetConsoleTextAttribute (hConsoleOutput
+		,FOREGROUND_GREEN|FOREGROUND_RED| FOREGROUND_INTENSITY| BACKGROUND_BLUE);
+}
+
+//																				//
+void textbackground(int x){} //not used
+
+//																				//
+static void clrscr(void)
+{
+	DWORD NumChar;
+	COORD BaseCor = {0,0};
+	DWORD nLen = ScrBufInfo.dwMaximumWindowSize.X *ScrBufInfo.dwMaximumWindowSize.Y; 
+
+	FillConsoleOutputCharacter(hConsoleOutput,' ', nLen, BaseCor,&NumChar); 
+}
+
+//																				//
+static void gotoxy(int x, int y)
+{
+	COORD dwCursorPosition;
+
+	dwCursorPosition.X = x-1;
+	dwCursorPosition.Y = y-1;
+
+	SetConsoleCursorPosition(hConsoleOutput,  // handle of console screen buffer		
+							dwCursorPosition ); // new cursor position coordinates 
+
+}
+
+//#endif
+//////////////////////////////////////////////////////////////
+//		End of Win32 Screen Functions									//
+//////////////////////////////////////////////////////////////
+
+#ifdef __WATCOMC__
+/*
+ * Partial conio emulation for Watcom C, DOS & OS2
+ */
+#define _NOCURSOR       0
+#define _NORMALCURSOR   1
+
+#ifdef OS2
+static VIOMODEINFO vm;
+#else
+#include <bios.h>
+typedef unsigned short USHORT;
+typedef unsigned char BYTE;
+void textmode(int);
+#pragma aux	textmode = 0x30 0xe4 0xcd 0x10 parm [ah];
+#endif
+
+static unsigned char curattr = 7;	/*
+					 * white on black 
+					 */
+static unsigned char curshow = 1;	/*
+					 * show cursor 
+					 */
+static USHORT atCol = 0;
+static USHORT atRow = 0;
+
+static void 
+_setcursortype(int type)
+{
+#ifdef OS2
+    VIOCURSORINFO ci;
+
+    VioGetCurType(&ci, 0);
+    if (type == _NOCURSOR) {
+	ci.attr = (USHORT)-1;
+	ci.yStart = ci.cEnd = 0;
+	curshow = 0;
+    } else {
+	ci.attr = 1;
+	curshow = 1;
+	gotoxy(atCol + 1, atRow + 1);
+    }
+    VioSetCurType(&ci, 0);
+#else
+    (void)type;
+#endif
+}
+
+static void 
+gotoxy(int x, int y)
+{
+    atCol = (USHORT)(x - 1);
+    atRow = (USHORT)(y - 1);
+
+    if (curshow) {
+#ifdef OS2
+	VioSetCurPos(atRow, atCol, 0);
+#else
+#endif
+    }
+}
+
+static int 
+wherex(void)
+{
+    return atCol + 1;
+}
+
+static int 
+wherey(void)
+{
+    return atRow + 1;
+}
+
+static void 
+clrscr(void)
+{
+#ifdef OS2
+    BYTE b[2];
+
+    b[0] = ' ';
+    b[1] = curattr;
+    VioScrollUp(0, 0, (USHORT)-1, (USHORT)-1, (USHORT)-1, b, 0);
+#else
+#endif
+}
+
+int 
+cputs(const char *buf)
+{
+    int len = 0;
+
+    if (buf && *buf) {
+#ifdef OS2
+	len = strlen(buf);
+	VioWrtCharStrAtt((PCH)buf, (USHORT)len, atRow, atCol, &curattr, 0);
+	atCol += (USHORT)len;
+	while (atCol >= vm.col) {
+	    atRow += 1;
+	    atCol -= vm.col;
+	}
+	if (curshow)
+	    VioSetCurPos(atRow, atCol, 0);
+#else
+#endif
+    }
+    return len;
+}
 #endif
 
 int StatusLine;			/*
@@ -152,6 +336,28 @@ int ScrnWidth, ScrnHeight;
 void 
 InitText(void)
 {
+
+    /* default to text mode */
+    textmode(3);
+    ScrnWidth = 80;
+    ScrnHeight = 24; // If it were 25, it would scroll, damn it. 
+
+#ifdef WIN32
+
+	if (!hConsoleOutput)
+		hConsoleOutput = GetStdHandle(STD_OUTPUT_HANDLE); 
+
+ 	if (GetConsoleScreenBufferInfo( hConsoleOutput  // handle of console screen buffer 
+ 	 										, &ScrBufInfo))  // address of screen buffer info. 
+	{
+   	ScrnWidth = ScrBufInfo.dwMaximumWindowSize.X ;
+    	ScrnHeight = ScrBufInfo.dwMaximumWindowSize.Y-20; 
+
+		SetConsoleTitle("ProQCC - Advanced Quake-C Compiler/Decompiler");
+	}
+
+#endif
+
 #ifdef UNIX
     if (initscr() == NULL) {
 	fprintf(stderr, "initscr() failed\n");
@@ -170,12 +376,18 @@ InitText(void)
 				 */
     clear();
 #else
-    /* reset to text mode */
-    textmode(3);
-    ScrnWidth = 80;
-    ScrnHeight = 24;		/*
-				 * If it were 25, it would scroll, damn it. 
+#ifdef OS2
+
+    vm.cb = sizeof(vm);
+    if (VioGetMode(&vm, 0) != 0) {
+	fprintf(stderr, "VioGetModeInfo() failed.\n");
+	exit(1);
+    }
+    ScrnWidth = vm.col;
+    ScrnHeight = vm.row - 1;	/*
+				 * If it were all, it would scroll, damn it. 
 				 */
+#endif
     _setcursortype(_NOCURSOR);	/*
 				 * Hide the cursor 
 				 */
@@ -195,7 +407,8 @@ EndText(void)
     refresh();
     endwin();
 #else
-#if defined(MSDOS) || defined(_WIN32)
+
+#if defined(OS2) || defined(MSDOS) 
     MoveCurs(0, ScrnHeight - 1);	/* stupid dosish cmd interpreters */
 #else
     MoveCurs(0, ScrnHeight);
@@ -226,9 +439,16 @@ GetCurs(int *x, int *y)
 #ifdef UNIX
     getsyx(*y, *x);
 #else
+
+#ifdef WIN32
+ 	GetConsoleScreenBufferInfo( hConsoleOutput, &ScrBufInfo); 
+   *x = ScrBufInfo.dwCursorPosition.X;
+   *y = ScrBufInfo.dwCursorPosition.Y;
+#else
     /* X and Y are zero-based */
     *x = wherex() - 1;
     *y = wherey() - 1;
+#endif
 #endif
 }
 
@@ -240,7 +460,11 @@ SetForeColor(int color)
 #ifdef UNIX
     Foreground = colortable[color];
 #else
+#ifdef __WATCOMC__
+    curattr = (BYTE)((curattr & 0xf0) | foretable[color] | 0x8);
+#else
     textcolor(foretable[color]);
+#endif
 #endif
 }
 
@@ -252,7 +476,11 @@ SetBackColor(int color)
 #ifdef UNIX
     Background = colortable[color];
 #else
+#ifdef  __WATCOMC__
+    curattr = (BYTE)((curattr & 0xf) | (backtable[color] << 4));
+#else
     textbackground(backtable[color]);
+#endif
 #endif
 }
 
@@ -372,23 +600,23 @@ DrawBox(int x, int y, int width, int height)
     register int i;
 
     gotoxy(x + 1, y + 1);
-    cputs("Ú");
+    cputs("+");
     for (i = 0; i < width - 2; i++)
-	cputs("Ä");
-    cputs("¿");
+	cputs("-");
+    cputs("+");
 
     for (i = 1; i < height - 1; i++) {
 	gotoxy(x + 1, i + 1 + y);
-	cputs("³");
+	cputs("|");
 	gotoxy(x + width, i + 1 + y);
-	cputs("³");
+	cputs("|");
     }
 
     gotoxy(x + 1, y + height);
-    cputs("À");
+    cputs("+");
     for (i = 0; i < width - 2; i++)
-	cputs("Ä");
-    cputs("Ù");
+	cputs("-");
+    cputs("+");
 #endif
 }
 
@@ -396,39 +624,49 @@ void
 DrawFilledBox(int x, int y, int width, int height)
 {
     register int i;
-    char boxdata[256];
+    char boxdata[384];
 
     for (i = 0; i < width; i++)
-	boxdata[i] = ' ';
+		boxdata[i] = ' ';
+
 #ifdef UNIX
     boxdata[i - 2] = '\0';
     DrawBox(x, y, width, height);
-    for (i = 0; i++ < height - 2;) {
-	move(y + i, x + 1);
-	cputs(boxdata);
+    for (i = 0; i++ < height - 2;) 
+	 {
+	 	move(y + i, x + 1);
+	 	cputs(boxdata);
     }
     refresh();
 #else
-    boxdata[0] = '³';
-    boxdata[i - 1] = '³';
+    boxdata[0] = '|';
+    boxdata[i - 1] = '|';
     boxdata[i] = '\0';
 
     gotoxy(x + 1, y + 1);
-    cputs("Ú");
-    for (i = 0; i < width - 2; i++)
-	cputs("Ä");
-    cputs("¿");
 
-    for (i = 1; i < height - 1; i++) {
-	gotoxy(x + 1, i + 1 + y);
-	cputs(boxdata);
+    cputs("+");
+
+    for (i = 0; i < width - 2; i++)
+		cputs("-");
+
+    cputs("+");
+
+    for (i = 1; i < height - 1; i++) 
+	 {
+		gotoxy(x + 1, i + 1 + y);
+		cputs(boxdata);
     }
 
     gotoxy(x + 1, y + height);
-    cputs("À");
+
+    cputs("+");
+
     for (i = 0; i < width - 2; i++)
-	cputs("Ä");
-    cputs("Ù");
+		cputs("-");
+
+    cputs("+");
+
 #endif
 }
 
@@ -445,7 +683,7 @@ DrawHLine(int x, int y, int length)
 
     gotoxy(x + 1, y + 1);
     for (i = 0; i < length; i++)
-	cputs("Ä");
+	cputs("-");
 #endif
 }
 
@@ -462,12 +700,12 @@ DrawVLine(int x, int y, int length)
 
     for (i = 0; i < length; i++) {
 	gotoxy(x + 1, i + 1 + y);
-	cputs("³");
+	cputs("|");
     }
 #endif
 }
 
-#if !defined(UNIX)
+#if !defined(UNIX) && !defined(OS2) && !defined(__WATCOMC__) && !defined(WIN32)
 static void 
 CopyText(int x1, int y1, int width, int height, int x2, int y2)
 {
@@ -493,21 +731,37 @@ ScrollText(void)
      * scroll the subwindow, but this doesn't work
      * very well in some versions of ncurses.
      */
-//    for (i = 5; i < ScrnHeight - 2; i++)
+    for (i = 5; i < ScrnHeight - 2; i++)
     /* This is actually ncurses/curses dependant */
-//#if defined(linux) || defined(_linux)
-//	memcpy(stdscr->_line[i].text, stdscr->_line[i+1].text,
-//#else
-//	memcpy(stdscr->_line[i], stdscr->_line[i + 1],
-//#endif
-//		42 * sizeof(chtype));
+
+#if defined(linux) || defined(_linux)
+	memcpy(stdscr->_line[i].text, stdscr->_line[i+1].text,
+#else
+	memcpy(stdscr->_line[i], stdscr->_line[i + 1],
+#endif
+		42 * sizeof(chtype));
     touchline(stdscr, 5, ScrnHeight - 2);
     SetColor();
     FillBox(1, ScrnHeight - 2, 42, 1, ' ');
     refresh();
 #else
+#ifdef OS2
+    BYTE b[2];
+
+    b[0] = ' ';
+    b[1] = curattr;
+    VioScrollUp(5, 1, (USHORT)(ScrnHeight - 2), (USHORT)43, 1, b, 0);
+#else
+#ifdef __WATCOMC__
+#else
+
+#ifndef WIN32
     CopyText(2, 8, 42, ScrnHeight - 9, 2, 7);
     FillBox(1, ScrnHeight - 2, 42, 1, ' ');
+#endif
+
+#endif
+#endif
 #endif
 }
 
@@ -644,7 +898,7 @@ ScrnInit(void)
     DrawHLine(1, 4, ScrnWidth - 2);
     DrawHLine(1, 2, ScrnWidth - 2);
     MoveCurs(2, 3);
-    CPrintf("$f3Elapsed time: $f200:00:00                       $f7By Lee Smith <$f6lees@infoave.net$f7>$f3");
+    CPrintf("$f3Elapsed time: $f200:00:00                                $f7By Lee Smith <$f6lbsmithvt@gmail.com$f7>$f3");
     remove("error.log");
 }
 

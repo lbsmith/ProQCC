@@ -1,4 +1,3 @@
-
 /* cmdlib.c */
 
 #include "cmdlib.h"

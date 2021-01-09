@@ -1,5 +1,17 @@
-
 /* cmdlib.h */
+
+#ifdef WIN32
+
+#include <windows.h>
+#include <conio.h>
+
+#define __BYTEBOOL__
+#define false FALSE
+#define true TRUE
+
+
+#endif
+
 
 #ifndef __CMDLIB__
 #define __CMDLIB__
@@ -27,9 +39,11 @@
 
 #ifndef __BYTEBOOL__
 #define __BYTEBOOL__
+
 typedef enum {
     false, true
 } boolean;
+
 typedef unsigned char byte;
 
 #endif

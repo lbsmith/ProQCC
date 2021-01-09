@@ -1,3 +1,4 @@
+
 #include "qcc.h"
 
 extern ddef_t globals[MAX_GLOBALS];
